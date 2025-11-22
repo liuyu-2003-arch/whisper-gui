@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Whisper Command Studio</title>
+    <style>
+        :root {
+            --glass-bg: rgba(255, 255, 255, 0.96);
+            --glass-border: rgba(255, 255, 255, 0.6);
+            --shadow-lg: 0 30px 80px -10px rgba(0, 0, 0, 0.15);
+            --accent: #0984e3; /* 科技蓝 */
+            --accent-hover: #74b9ff;
+            --success: #00b894;
+            --text-main: #2d3436;
+            --text-sub: #636e72;
+            --radius-main: 24px;
+            --radius-sm: 12px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; }
+
+        body {
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle at center, #f0f3f7 0%, #dfe6e9 100%);
+            color: var(--text-main);
+        }
+
+        .orb { position: absolute; border-radius: 50%; filter: blur(90px); z-index: -1; opacity: 0.6; }
+        .orb-1 { top: -15%; left: -10%; width: 600px; height: 600px; background: #dff9fb; }
+        .orb-2 { bottom: -15%; right: -10%; width: 500px; height: 500px; background: #c7ecee; }
+
+        /* 主窗口 */
+        .app-window {
+            width: 720px;
+            height: 85vh;
+            max-height: 800px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(40px);
+            -webkit-backdrop-filter: blur(40px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-main);
+            box-shadow: var(--shadow-lg);
+            display: flex;
+            padding: 32px;
+            gap: 0;
+            transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* 展开总宽度 */
+        .app-window.expanded { width: 1100px; gap: 40px; }
+
+        /* 左侧面板 */
+        .panel-left {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            transition: all 0.5s;
+        }
+        /* 默认展开（窄代码模式）时，左侧占满剩余空间 */
+        .app-window.expanded .panel-left { flex: 1; }
+        /* 当代码区变宽时，左侧才收缩固定 */
+        .app-window.expanded.full-code-mode .panel-left { flex: 0 0 400px; }
+
+        /* 右侧面板 */
+        .panel-right {
+            width: 0; flex: 0; opacity: 0;
+            display: flex; flex-direction: column; gap: 15px;
+            transform: translateX(40px);
+            transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+            overflow: hidden;
+        }
+
+        /* 默认展开：窄模式 (固定340px) */
+        .app-window.expanded .panel-right { flex: 0 0 340px; opacity: 1; width: auto; transform: translateX(0); }
+
+        /* 全宽模式：占据主要空间 */
+        .app-window.expanded.full-code-mode .panel-right { flex: 1; }
+
+        h1 { font-size: 22px; font-weight: 700; color: #2d3436; display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }
+        .logo-icon { width: 24px; height: 24px; background: linear-gradient(135deg, var(--accent), #00cec9); border-radius: 8px; display: inline-block; }
+
+        /* 地址栏 */
+        .address-bar {
+            display: flex; align-items: center;
+            background: #fff;
+            border: 2px solid transparent;
+            border-radius: var(--radius-sm);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+            padding: 8px 12px;
+            transition: all 0.2s;
+        }
+        .address-bar:focus-within { border-color: var(--accent); box-shadow: 0 4px 16px rgba(9, 132, 227, 0.15); }
+        .icon-folder { font-size: 16px; color: #b2bec3; margin-right: 8px; }
+        .path-label { font-size: 12px; color: #b2bec3; white-space: nowrap; margin-right: 8px; font-weight: 600; }
+        .input-path {
+            flex: 1; border: none; outline: none; background: transparent;
+            font-family: "SF Mono", monospace; font-size: 13px; color: #333;
+        }
+
+        /* 选项组 */
+        .options-grid { display: flex; flex-direction: column; gap: 16px; }
+
+        .option-row { display: flex; align-items: center; justify-content: space-between; }
+        .option-label { font-size: 13px; font-weight: 600; color: #636e72; width: 60px; }
+
+        .segmented-control {
+            display: flex; background: #e8ebf0; padding: 4px; border-radius: 10px; flex: 1;
+        }
+        .seg-btn {
+            flex: 1; border: none; background: none; padding: 8px; border-radius: 8px;
+            font-size: 12px; font-weight: 500; color: #636e72; cursor: pointer; transition: all 0.2s;
+        }
+        .seg-btn:hover { color: var(--text-main); }
+        .seg-btn.active { background: #fff; color: var(--accent); font-weight: 700; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+
+        /* 拖拽区 */
+        .drop-zone {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.5);
+            border: 2px dashed rgba(0,0,0,0.1);
+            border-radius: var(--radius-sm);
+            position: relative; overflow-y: auto; cursor: pointer; transition: all 0.2s;
+        }
+        .drop-zone:hover { background: rgba(255,255,255,0.8); border-color: rgba(9, 132, 227, 0.3); }
+        .drop-zone.drag-over { border-color: var(--accent); background: rgba(9, 132, 227, 0.05); }
+
+        .empty-state { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #a4b0be; pointer-events: none; }
+        .empty-icon { font-size: 42px; margin-bottom: 8px; opacity: 0.5; display: block; }
+
+        .file-list { padding: 10px; list-style: none; }
+        .file-item {
+            background: #fff; margin-bottom: 8px; padding: 12px 14px; border-radius: 8px;
+            display: flex; align-items: center; gap: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.04); transition: transform 0.2s;
+        }
+        .file-icon { font-size: 18px; color: var(--accent); opacity: 0.8; }
+        .file-name { font-size: 12px; color: #2d3436; font-weight: 500; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .del-btn { color: #ff7675; cursor: pointer; opacity: 0.6; padding: 4px; font-size: 16px; }
+        .del-btn:hover { opacity: 1; }
+
+        /* 右侧代码区 */
+        .preview-header { font-size: 13px; font-weight: 600; color: #2d3436; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+
+        .toggle-view-btn {
+            background: rgba(0,0,0,0.05); border: none; border-radius: 6px;
+            width: 24px; height: 24px; cursor: pointer; color: #636e72;
+            display: flex; justify-content: center; align-items: center;
+            transition: all 0.2s; font-size: 14px;
+        }
+        .toggle-view-btn:hover { background: rgba(0,0,0,0.1); color: var(--accent); }
+
+        .code-editor {
+            flex: 1; width: 100%; background: #282c34; color: #a9ff68; border-radius: 12px; padding: 20px;
+            font-family: "SF Mono", "Menlo", monospace; font-size: 12px; line-height: 1.6;
+            resize: none; border: none; outline: none; white-space: pre;
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.2);
+        }
+
+        .copy-btn {
+            width: 100%; padding: 16px; background: var(--accent); border: none; border-radius: 12px;
+            color: white; font-size: 15px; font-weight: 600; letter-spacing: 0.5px;
+            cursor: pointer; transition: all 0.2s; box-shadow: 0 6px 20px rgba(9, 132, 227, 0.3);
+        }
+        .copy-btn:hover { background: var(--accent-hover); transform: translateY(-2px); }
+        .copy-btn:active { transform: scale(0.98); }
+        .copy-btn.disabled { background: #b2bec3; cursor: not-allowed; box-shadow: none; transform: none; }
+
+    </style>
+</head>
+<body>
+
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <input type="file" id="fileInput" multiple style="display:none">
+
+    <div class="app-window" id="appWindow">
+
+        <div class="panel-left">
+            <h1><span class="logo-icon"></span> Whisper Studio</h1>
+
+            <div class="drop-zone" id="dropZone">
+                <div class="empty-state" id="emptyState">
+                    <span class="empty-icon">🎙️</span>
+                    <p>拖入音视频文件</p>
+                </div>
+                <ul class="file-list" id="fileList"></ul>
+            </div>
+
+            <div class="options-grid">
+                <div class="option-row">
+                    <span class="option-label">Model</span>
+                    <div class="segmented-control">
+                        <button class="seg-btn" onclick="setOpt('model', 'small')">Small</button>
+                        <button class="seg-btn active" onclick="setOpt('model', 'medium')">Medium</button>
+                        <button class="seg-btn" onclick="setOpt('model', 'large')">Large</button>
+                    </div>
+                </div>
+
+                <div class="option-row">
+                    <span class="option-label">Lang</span>
+                    <div class="segmented-control">
+                        <button class="seg-btn active" onclick="setOpt('lang', '')">Auto</button>
+                        <button class="seg-btn" onclick="setOpt('lang', 'Chinese')">中文</button>
+                        <button class="seg-btn" onclick="setOpt('lang', 'English')">English</button>
+                    </div>
+                </div>
+
+                <div class="option-row">
+                    <span class="option-label">Format</span>
+                    <div class="segmented-control">
+                        <button class="seg-btn" onclick="setOpt('fmt', 'txt')">Text</button>
+                        <button class="seg-btn active" onclick="setOpt('fmt', 'srt')">Subtitle</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="address-bar">
+                <span class="icon-folder">📂</span>
+                <span class="path-label">Output:</span>
+                <input type="text" class="input-path" id="outputPath" value="/Users/yuliu/Movies">
+            </div>
+
+        </div>
+
+        <div class="panel-right">
+            <div class="preview-header">
+                <div style="display:flex; gap:8px; align-items:center">
+                    <span>Command</span>
+                    <span style="opacity:0.5; font-weight:400; font-size:11px">Bash</span>
+                </div>
+                <button class="toggle-view-btn" id="toggleBtn" onclick="toggleCodeView()" title="展开/收起">⤢</button>
+            </div>
+            <textarea id="previewBox" class="code-editor" readonly></textarea>
+            <button class="copy-btn disabled" id="copyBtn" onclick="copyCommand()">等待文件...</button>
+        </div>
+
+    </div>
+
+    <script>
+        // State
+        let files = [];
+        let config = {
+            model: 'medium',
+            lang: '', // empty = auto
+            fmt: 'srt'
+        };
+        let isNarrowMode = true; // 默认为窄模式
+
+        // DOM Elements
+        const appWindow = document.getElementById('appWindow');
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const fileListEl = document.getElementById('fileList');
+        const emptyState = document.getElementById('emptyState');
+        const previewBox = document.getElementById('previewBox');
+        const copyBtn = document.getElementById('copyBtn');
+        const outputPathInput = document.getElementById('outputPath');
+        const toggleBtn = document.getElementById('toggleBtn');
+
+        // Logic
+        function setOpt(type, val) {
+            config[type] = val;
+            const row = event.target.parentElement;
+            Array.from(row.children).forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            updatePreview();
+        }
+
+        // File Handling
+        dropZone.addEventListener('click', (e) => {
+            if (e.target.closest('.del-btn')) return;
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            addFiles(e.target.files);
+            fileInput.value = '';
+        });
+
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+        dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('drag-over'); });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            addFiles(e.dataTransfer.files);
+        });
+
+        function addFiles(fileList) {
+            Array.from(fileList).forEach(f => {
+                if (!f.name.startsWith('.')) {
+                    files.push(f.name);
+                }
+            });
+            renderList();
+            updatePreview();
+        }
+
+        function renderList() {
+            fileListEl.innerHTML = '';
+            if (files.length > 0) {
+                emptyState.style.display = 'none';
+                files.forEach((name, idx) => {
+                    const li = document.createElement('li');
+                    li.className = 'file-item';
+                    li.innerHTML = `
+                        <span class="file-icon">📄</span>
+                        <span class="file-name" title="${name}">${name}</span>
+                        <div class="del-btn" onclick="removeFile(${idx})">×</div>
+                    `;
+                    fileListEl.appendChild(li);
+                });
+            } else {
+                emptyState.style.display = 'block';
+            }
+        }
+
+        function removeFile(idx) {
+            files.splice(idx, 1);
+            renderList();
+            updatePreview();
+        }
+
+        outputPathInput.addEventListener('input', updatePreview);
+
+        // Generate Code
+        function updatePreview() {
+            const outPath = outputPathInput.value.trim().replace(/\/$/, '');
+
+            if (files.length === 0 || !outPath) {
+                appWindow.classList.remove('expanded');
+                // 不在未展开时重置模式，保持用户偏好
+                copyBtn.classList.add('disabled');
+                copyBtn.textContent = "等待文件...";
+                return;
+            }
+
+            // 自动展开
+            appWindow.classList.add('expanded');
+
+            // 应用当前视图模式
+            if (isNarrowMode) {
+                appWindow.classList.remove('full-code-mode'); // 移除全宽类 = 窄模式
+                toggleBtn.innerText = "⤢"; // 显示“展开”图标
+            } else {
+                appWindow.classList.add('full-code-mode'); // 添加全宽类
+                toggleBtn.innerText = "⤡"; // 显示“收缩”图标
+            }
+
+            copyBtn.classList.remove('disabled');
+            copyBtn.textContent = "复制命令";
+
+            let cmd = `mkdir -p "${outPath}" && \\\n`;
+
+            files.forEach((f, i) => {
+                const safeName = f.replace(/"/g, '\\"');
+                let line = `whisper "${safeName}" --model ${config.model} --output_format ${config.fmt} --output_dir "${outPath}"`;
+
+                if (config.lang) {
+                    line += ` --language ${config.lang}`;
+                }
+
+                cmd += line;
+
+                if (i < files.length - 1) {
+                    cmd += ` && \\\n`;
+                }
+            });
+
+            previewBox.value = cmd;
+        }
+
+        // 视图切换
+        function toggleCodeView() {
+            isNarrowMode = !isNarrowMode; // 反转状态
+
+            if (isNarrowMode) {
+                appWindow.classList.remove('full-code-mode');
+                toggleBtn.innerText = "⤢";
+            } else {
+                appWindow.classList.add('full-code-mode');
+                toggleBtn.innerText = "⤡";
+            }
+        }
+
+        function copyCommand() {
+            if (copyBtn.classList.contains('disabled')) return;
+            previewBox.select();
+            document.execCommand('copy');
+            window.getSelection().removeAllRanges();
+
+            const originalText = copyBtn.innerText;
+            copyBtn.innerText = "✓ 已复制";
+            copyBtn.style.background = "#00b894";
+            setTimeout(() => {
+                copyBtn.innerText = originalText;
+                copyBtn.style.background = "";
+            }, 2000);
+        }
+    </script>
+</body>
+</html>

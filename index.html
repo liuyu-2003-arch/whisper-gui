@@ -3,15 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Whisper Command Studio</title>
+    <title>Whisper Studio Ultimate</title>
     <style>
         :root {
             --glass-bg: rgba(255, 255, 255, 0.96);
             --glass-border: rgba(255, 255, 255, 0.6);
             --shadow-lg: 0 30px 80px -10px rgba(0, 0, 0, 0.15);
-            --accent: #0984e3; /* 科技蓝 */
+            --accent: #0984e3;
             --accent-hover: #74b9ff;
             --success: #00b894;
+            --error: #ff7675;
             --text-main: #2d3436;
             --text-sub: #636e72;
             --radius-main: 24px;
@@ -39,7 +40,7 @@
         .app-window {
             width: 720px;
             height: 85vh;
-            max-height: 800px;
+            max-height: 820px;
             background: var(--glass-bg);
             backdrop-filter: blur(40px);
             -webkit-backdrop-filter: blur(40px);
@@ -54,8 +55,7 @@
             overflow: hidden;
         }
 
-        /* 展开总宽度 */
-        .app-window.expanded { width: 1100px; gap: 40px; }
+        .app-window.expanded { width: 1150px; gap: 40px; }
 
         /* 左侧面板 */
         .panel-left {
@@ -63,13 +63,11 @@
             min-width: 0;
             display: flex;
             flex-direction: column;
-            gap: 24px;
+            gap: 20px;
             transition: all 0.5s;
         }
-        /* 默认展开（窄代码模式）时，左侧占满剩余空间 */
         .app-window.expanded .panel-left { flex: 1; }
-        /* 当代码区变宽时，左侧才收缩固定 */
-        .app-window.expanded.full-code-mode .panel-left { flex: 0 0 400px; }
+        .app-window.expanded.full-code-mode .panel-left { flex: 0 0 420px; }
 
         /* 右侧面板 */
         .panel-right {
@@ -79,11 +77,7 @@
             transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
             overflow: hidden;
         }
-
-        /* 默认展开：窄模式 (固定340px) */
         .app-window.expanded .panel-right { flex: 0 0 340px; opacity: 1; width: auto; transform: translateX(0); }
-
-        /* 全宽模式：占据主要空间 */
         .app-window.expanded.full-code-mode .panel-right { flex: 1; }
 
         h1 { font-size: 22px; font-weight: 700; color: #2d3436; display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }
@@ -96,32 +90,55 @@
             border: 2px solid transparent;
             border-radius: var(--radius-sm);
             box-shadow: 0 4px 12px rgba(0,0,0,0.04);
-            padding: 8px 12px;
+            padding: 6px;
             transition: all 0.2s;
+            position: relative;
         }
         .address-bar:focus-within { border-color: var(--accent); box-shadow: 0 4px 16px rgba(9, 132, 227, 0.15); }
-        .icon-folder { font-size: 16px; color: #b2bec3; margin-right: 8px; }
-        .path-label { font-size: 12px; color: #b2bec3; white-space: nowrap; margin-right: 8px; font-weight: 600; }
+        .address-bar.error { border-color: var(--error); background: #fff5f5; }
+        .address-bar.valid { border-color: var(--success); }
+
+        .icon-folder { padding: 0 10px; font-size: 16px; color: #b2bec3; }
+
         .input-path {
             flex: 1; border: none; outline: none; background: transparent;
-            font-family: "SF Mono", monospace; font-size: 13px; color: #333;
+            padding: 8px 0; font-family: "SF Mono", monospace; font-size: 13px; color: #333;
+            min-width: 100px;
+        }
+        .input-path::placeholder { color: #b2bec3; font-family: -apple-system, sans-serif; }
+
+        .divider { padding: 0 8px; color: #dfe6e9; font-weight: 300; font-size: 20px; }
+
+        .input-filename {
+            width: 140px; border: none; outline: none; background: transparent;
+            padding: 6px 0;
+            font-family: "SF Mono", monospace; font-size: 12px; color: #b2bec3; font-weight: 500;
+            font-style: italic; cursor: default;
         }
 
+        .status-badge {
+            margin-left: 10px; margin-right: 4px;
+            font-size: 11px; font-weight: 600; color: #b2bec3;
+            white-space: nowrap; display: flex; align-items: center; gap: 4px;
+        }
+        .status-badge.valid { color: var(--success); }
+        .status-badge.invalid { color: var(--error); }
+
         /* 选项组 */
-        .options-grid { display: flex; flex-direction: column; gap: 16px; }
+        .options-grid { display: flex; flex-direction: column; gap: 14px; background: rgba(255,255,255,0.4); padding: 15px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.5); }
 
         .option-row { display: flex; align-items: center; justify-content: space-between; }
-        .option-label { font-size: 13px; font-weight: 600; color: #636e72; width: 60px; }
+        .option-label { font-size: 12px; font-weight: 700; color: #636e72; width: 60px; text-transform: uppercase; letter-spacing: 0.5px; }
 
         .segmented-control {
             display: flex; background: #e8ebf0; padding: 4px; border-radius: 10px; flex: 1;
         }
         .seg-btn {
-            flex: 1; border: none; background: none; padding: 8px; border-radius: 8px;
-            font-size: 12px; font-weight: 500; color: #636e72; cursor: pointer; transition: all 0.2s;
+            flex: 1; border: none; background: none; padding: 6px; border-radius: 7px;
+            font-size: 12px; font-weight: 600; color: #636e72; cursor: pointer; transition: all 0.2s;
         }
         .seg-btn:hover { color: var(--text-main); }
-        .seg-btn.active { background: #fff; color: var(--accent); font-weight: 700; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+        .seg-btn.active { background: #fff; color: var(--accent); box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
 
         /* 拖拽区 */
         .drop-zone {
@@ -129,24 +146,42 @@
             background: rgba(255, 255, 255, 0.5);
             border: 2px dashed rgba(0,0,0,0.1);
             border-radius: var(--radius-sm);
-            position: relative; overflow-y: auto; cursor: pointer; transition: all 0.2s;
+            position: relative;
+            display: flex; flex-direction: column;
+            cursor: pointer; transition: all 0.2s;
         }
         .drop-zone:hover { background: rgba(255,255,255,0.8); border-color: rgba(9, 132, 227, 0.3); }
         .drop-zone.drag-over { border-color: var(--accent); background: rgba(9, 132, 227, 0.05); }
 
-        .empty-state { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #a4b0be; pointer-events: none; }
+        .empty-state {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            text-align: center; color: #a4b0be; pointer-events: none;
+        }
         .empty-icon { font-size: 42px; margin-bottom: 8px; opacity: 0.5; display: block; }
 
-        .file-list { padding: 10px; list-style: none; }
+        .file-list { padding: 10px; list-style: none; overflow-y: auto; flex: 1; }
         .file-item {
-            background: #fff; margin-bottom: 8px; padding: 12px 14px; border-radius: 8px;
-            display: flex; align-items: center; gap: 12px;
+            background: #fff; margin-bottom: 8px; padding: 10px 12px; border-radius: 8px;
+            display: flex; align-items: center; gap: 10px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.04); transition: transform 0.2s;
         }
-        .file-icon { font-size: 18px; color: var(--accent); opacity: 0.8; }
+        .file-icon { font-size: 16px; color: var(--accent); opacity: 0.8; }
         .file-name { font-size: 12px; color: #2d3436; font-weight: 500; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .del-btn { color: #ff7675; cursor: pointer; opacity: 0.6; padding: 4px; font-size: 16px; }
         .del-btn:hover { opacity: 1; }
+
+        /* 右下角计数器 */
+        .count-tag {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            font-size: 11px; font-weight: 600;
+            background: rgba(223, 228, 234, 0.8);
+            color: #636e72;
+            padding: 4px 10px; border-radius: 100px;
+            pointer-events: none;
+            backdrop-filter: blur(4px);
+        }
 
         /* 右侧代码区 */
         .preview-header { font-size: 13px; font-weight: 600; color: #2d3436; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
@@ -161,7 +196,7 @@
 
         .code-editor {
             flex: 1; width: 100%; background: #282c34; color: #a9ff68; border-radius: 12px; padding: 20px;
-            font-family: "SF Mono", "Menlo", monospace; font-size: 12px; line-height: 1.6;
+            font-family: "SF Mono", "Menlo", monospace; font-size: 11px; line-height: 1.5;
             resize: none; border: none; outline: none; white-space: pre;
             box-shadow: inset 0 2px 10px rgba(0,0,0,0.2);
         }
@@ -188,12 +223,28 @@
         <div class="panel-left">
             <h1><span class="logo-icon"></span> Whisper Studio</h1>
 
+            <div class="address-bar" id="addressBar">
+                <span class="icon-folder">📂</span>
+
+                <input type="text" class="input-path" id="workPath"
+                       value=""
+                       placeholder="粘贴路径 (Option+Cmd+C)..." autocomplete="off">
+
+                <span class="divider">/</span>
+
+                <input type="text" class="input-filename" id="outputPattern"
+                       value="[同名].srt" readonly>
+
+                <span class="status-badge" id="pathStatus"></span>
+            </div>
+
             <div class="drop-zone" id="dropZone">
                 <div class="empty-state" id="emptyState">
                     <span class="empty-icon">🎙️</span>
-                    <p>拖入音视频文件</p>
+                    <p>点击或拖入文件</p>
                 </div>
                 <ul class="file-list" id="fileList"></ul>
+                <span class="count-tag" id="countLabel">0 items</span>
             </div>
 
             <div class="options-grid">
@@ -224,12 +275,6 @@
                 </div>
             </div>
 
-            <div class="address-bar">
-                <span class="icon-folder">📂</span>
-                <span class="path-label">Output:</span>
-                <input type="text" class="input-path" id="outputPath" value="/Users/yuliu/Movies">
-            </div>
-
         </div>
 
         <div class="panel-right">
@@ -238,7 +283,7 @@
                     <span>Command</span>
                     <span style="opacity:0.5; font-weight:400; font-size:11px">Bash</span>
                 </div>
-                <button class="toggle-view-btn" id="toggleBtn" onclick="toggleCodeView()" title="展开/收起">⤢</button>
+                <button class="toggle-view-btn" id="toggleBtn" onclick="toggleCodeView()" title="切换视图">⤢</button>
             </div>
             <textarea id="previewBox" class="code-editor" readonly></textarea>
             <button class="copy-btn disabled" id="copyBtn" onclick="copyCommand()">等待文件...</button>
@@ -254,7 +299,7 @@
             lang: '', // empty = auto
             fmt: 'srt'
         };
-        let isNarrowMode = true; // 默认为窄模式
+        let isNarrowMode = true; // Default narrow mode
 
         // DOM Elements
         const appWindow = document.getElementById('appWindow');
@@ -262,9 +307,15 @@
         const fileInput = document.getElementById('fileInput');
         const fileListEl = document.getElementById('fileList');
         const emptyState = document.getElementById('emptyState');
+        const countLabel = document.getElementById('countLabel');
+
+        const pathInput = document.getElementById('workPath');
+        const outputPatternInput = document.getElementById('outputPattern');
+        const addressBar = document.getElementById('addressBar');
+        const pathStatus = document.getElementById('pathStatus');
+
         const previewBox = document.getElementById('previewBox');
         const copyBtn = document.getElementById('copyBtn');
-        const outputPathInput = document.getElementById('outputPath');
         const toggleBtn = document.getElementById('toggleBtn');
 
         // Logic
@@ -273,7 +324,13 @@
             const row = event.target.parentElement;
             Array.from(row.children).forEach(btn => btn.classList.remove('active'));
             event.target.classList.add('active');
-            updatePreview();
+
+            // Link Format Option to Address Bar Display
+            if (type === 'fmt') {
+                outputPatternInput.value = `[同名].${val}`;
+            }
+
+            validateAndCheck();
         }
 
         // File Handling
@@ -302,7 +359,7 @@
                 }
             });
             renderList();
-            updatePreview();
+            validateAndCheck();
         }
 
         function renderList() {
@@ -322,48 +379,75 @@
             } else {
                 emptyState.style.display = 'block';
             }
+            countLabel.textContent = `${files.length} items`;
         }
 
         function removeFile(idx) {
             files.splice(idx, 1);
             renderList();
-            updatePreview();
+            validateAndCheck();
         }
 
-        outputPathInput.addEventListener('input', updatePreview);
+        pathInput.addEventListener('input', validateAndCheck);
 
-        // Generate Code
-        function updatePreview() {
-            const outPath = outputPathInput.value.trim().replace(/\/$/, '');
+        // Validation & Preview Generation
+        function validateAndCheck() {
+            let path = pathInput.value.trim().replace(/\/$/, '');
+            const hasFiles = files.length > 0;
 
-            if (files.length === 0 || !outPath) {
-                appWindow.classList.remove('expanded');
-                // 不在未展开时重置模式，保持用户偏好
-                copyBtn.classList.add('disabled');
-                copyBtn.textContent = "等待文件...";
-                return;
-            }
+            // Path Validation Regex (Unix/Win)
+            const isPathValid = path.length > 0 && (/^(\/|[a-zA-Z]:)/.test(path));
 
-            // 自动展开
-            appWindow.classList.add('expanded');
-
-            // 应用当前视图模式
-            if (isNarrowMode) {
-                appWindow.classList.remove('full-code-mode'); // 移除全宽类 = 窄模式
-                toggleBtn.innerText = "⤢"; // 显示“展开”图标
+            // Update UI Status
+            if (isPathValid) {
+                addressBar.classList.remove('error');
+                addressBar.classList.add('valid');
+                pathStatus.textContent = "✅ 有效";
+                pathStatus.className = "status-badge valid";
             } else {
-                appWindow.classList.add('full-code-mode'); // 添加全宽类
-                toggleBtn.innerText = "⤡"; // 显示“收缩”图标
+                addressBar.classList.remove('valid');
+                if (path.length > 0) {
+                    addressBar.classList.add('error');
+                    pathStatus.textContent = "🚫 无效";
+                    pathStatus.className = "status-badge invalid";
+                } else {
+                    addressBar.classList.remove('error');
+                    pathStatus.textContent = "";
+                    pathStatus.className = "status-badge";
+                }
             }
 
-            copyBtn.classList.remove('disabled');
-            copyBtn.textContent = "复制命令";
+            // Logic to expand/generate
+            if (isPathValid && hasFiles) {
+                appWindow.classList.add('expanded');
 
-            let cmd = `mkdir -p "${outPath}" && \\\n`;
+                // Maintain view mode (Default to Narrow)
+                if (isNarrowMode) {
+                    appWindow.classList.remove('full-code-mode');
+                    toggleBtn.innerText = "⤢";
+                } else {
+                    appWindow.classList.add('full-code-mode');
+                    toggleBtn.innerText = "⤡";
+                }
+
+                copyBtn.classList.remove('disabled');
+                copyBtn.textContent = "复制命令";
+                generatePreview(path);
+            } else {
+                appWindow.classList.remove('expanded');
+                appWindow.classList.remove('full-code-mode'); // Reset
+
+                copyBtn.classList.add('disabled');
+                copyBtn.textContent = isPathValid ? "等待文件..." : "请先输入有效路径";
+            }
+        }
+
+        function generatePreview(path) {
+            let cmd = `mkdir -p "${path}" && \\\n`;
 
             files.forEach((f, i) => {
                 const safeName = f.replace(/"/g, '\\"');
-                let line = `whisper "${safeName}" --model ${config.model} --output_format ${config.fmt} --output_dir "${outPath}"`;
+                let line = `whisper "${safeName}" --model ${config.model} --output_format ${config.fmt} --output_dir "${path}"`;
 
                 if (config.lang) {
                     line += ` --language ${config.lang}`;
@@ -379,9 +463,9 @@
             previewBox.value = cmd;
         }
 
-        // 视图切换
+        // View Toggle
         function toggleCodeView() {
-            isNarrowMode = !isNarrowMode; // 反转状态
+            isNarrowMode = !isNarrowMode; // Invert
 
             if (isNarrowMode) {
                 appWindow.classList.remove('full-code-mode');
@@ -406,6 +490,9 @@
                 copyBtn.style.background = "";
             }, 2000);
         }
+
+        // Init Check
+        validateAndCheck();
     </script>
 </body>
 </html>
